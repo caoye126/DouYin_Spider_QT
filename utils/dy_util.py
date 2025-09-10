@@ -22,17 +22,17 @@ else:
 
 
 try:
-    node_modules = path.join(basedir, 'node_modules')
+    # 不使用cwd参数，避免路径问题
     dy_path = path.join(basedir, 'static', 'dy_ab.js')
-    dy_js = execjs.compile(open(dy_path, 'r', encoding='utf-8').read(), cwd=node_modules)
+    dy_js = execjs.compile(open(dy_path, 'r', encoding='utf-8').read())
     sign_path = path.join(basedir, 'static', 'dy_live_sign.js')
-    sign_js = execjs.compile(open(sign_path, 'r', encoding='utf-8').read(), cwd=node_modules)
+    sign_js = execjs.compile(open(sign_path, 'r', encoding='utf-8').read())
 except:
-    node_modules = path.join(basedir, '..', 'node_modules')
+    # 尝试上级目录
     dy_path = path.join(basedir, '..', 'static', 'dy_ab.js')
-    dy_js = execjs.compile(open(dy_path, 'r', encoding='utf-8').read(), cwd=node_modules)
+    dy_js = execjs.compile(open(dy_path, 'r', encoding='utf-8').read())
     sign_path = path.join(basedir, '..', 'static', 'dy_live_sign.js')
-    sign_js = execjs.compile(open(sign_path, 'r', encoding='utf-8').read(), cwd=node_modules)
+    sign_js = execjs.compile(open(sign_path, 'r', encoding='utf-8').read())
 
 
 def trans_cookies(cookies_str):

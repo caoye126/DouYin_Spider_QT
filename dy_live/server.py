@@ -1,3 +1,10 @@
+# coding=utf-8
+"""
+抖音直播间监听服务
+作者：五更琉璃
+日期：2025年
+"""
+
 import gzip
 import threading
 import time
@@ -158,6 +165,17 @@ class DouyinLive:
         except Exception as e:
             print(str(e))
             self.ws.close()
+
+
+def start_live_monitor(live_id):
+    """启动直播监听"""
+    try:
+        cookies, _ = common_util.init()
+        live = DouyinLive(live_id, cookies)
+        live.start_ws()
+    except Exception as e:
+        print(f"启动直播监听失败: {e}")
+        raise e
 
 
 if __name__ == '__main__':

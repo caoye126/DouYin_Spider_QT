@@ -9,3 +9,6 @@ PyExecJS
 requests
 argparse
 websockets
+websocket-client
+pandas
+PyQt5

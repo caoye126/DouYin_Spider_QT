@@ -1,3 +1,10 @@
+# coding=utf-8
+"""
+抖音API接口模块
+作者：五更琉璃
+日期：2025年
+"""
+
 import json
 import random
 import re
@@ -6,9 +13,32 @@ import urllib
 import uuid
 
 import requests
+from loguru import logger
 requests.packages.urllib3.disable_warnings()
+
+def retry_on_network_error(max_retries=3, delay=2):
+    """网络请求重试装饰器"""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                    logger.warning(f"{func.__name__} 网络错误，第{attempt + 1}次尝试: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(delay)
+                    else:
+                        raise
+                except Exception as e:
+                    logger.error(f"{func.__name__} 请求失败，第{attempt + 1}次尝试: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(delay)
+                    else:
+                        raise
+            return None
+        return wrapper
+    return decorator
 from bs4 import BeautifulSoup
-from protobuf_to_dict import protobuf_to_dict
 
 import static.Response_pb2 as ResponseProto
 from builder.header import HeaderBuilder, HeaderType
@@ -102,7 +132,7 @@ class DouyinAPI:
                          auth.msToken)
         params.with_a_bogus()
         resp = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), cookies=auth.cookie,
-                            params=params.get(), verify=False)
+                            params=params.get(), verify=False, timeout=30)
         return json.loads(resp.text)
 
     @staticmethod
@@ -154,11 +184,12 @@ class DouyinAPI:
         params.add_param("verifyFp", auth.cookie['s_v_web_id'])
         params.add_param("fp", auth.cookie['s_v_web_id'])
         resp = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), cookies=auth.cookie,
-                            params=params.get(), verify=False)
+                            params=params.get(), verify=False, timeout=30)
         resp_json = json.loads(resp.text)
         return resp_json
 
     @staticmethod
+    @retry_on_network_error(max_retries=3, delay=2)
     def get_work_out_comment(auth, url: str, cursor: str = '0', **kwargs) -> dict:
         """
         获取作品的全部一级评论.
@@ -214,11 +245,12 @@ class DouyinAPI:
         params.add_param("msToken", auth.msToken)
         params.with_a_bogus()
         resp = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), cookies=auth.cookie,
-                            params=params.get(), verify=False)
+                            params=params.get(), verify=False, timeout=30)
         resp_json = json.loads(resp.text)
         return resp_json
 
     @staticmethod
+    @retry_on_network_error(max_retries=3, delay=2)
     def get_work_all_out_comment(auth, url: str, **kwargs) -> list:
         """
         获取作品全部一级评论.
@@ -293,7 +325,7 @@ class DouyinAPI:
         params.add_param("msToken", auth.msToken)
         params.with_a_bogus()
         resp = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), cookies=auth.cookie,
-                            params=params.get(), verify=False)
+                            params=params.get(), verify=False, timeout=30)
         resp_json = json.loads(resp.text)
         return resp_json
 
@@ -382,7 +414,7 @@ class DouyinAPI:
         params.add_param('fp', auth.cookie['s_v_web_id'])
         params.with_a_bogus()
         resp = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), cookies=auth.cookie,
-                            params=params.get(), verify=False)
+                            params=params.get(), verify=False, timeout=30)
         return json.loads(resp.text)
 
     @staticmethod
@@ -449,7 +481,7 @@ class DouyinAPI:
         params.add_param("msToken", auth.msToken)
         params.with_a_bogus()
         resp = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), cookies=auth.cookie,
-                            params=params.get(), verify=False)
+                            params=params.get(), verify=False, timeout=30)
         return json.loads(resp.text)
 
     @staticmethod
@@ -562,7 +594,7 @@ class DouyinAPI:
         params.add_param("msToken", auth.msToken)
         params.with_a_bogus()
         resp = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), cookies=auth.cookie,
-                            params=params.get(), verify=False)
+                            params=params.get(), verify=False, timeout=30)
         return resp.json()
 
     @staticmethod
@@ -619,7 +651,7 @@ class DouyinAPI:
         params.add_param("msToken", auth.msToken)
         params.with_a_bogus()
         resp = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), cookies=auth.cookie,
-                            params=params.get(), verify=False)
+                            params=params.get(), verify=False, timeout=30)
         return resp.json()
 
     @staticmethod
@@ -699,7 +731,7 @@ class DouyinAPI:
         params.with_a_bogus()
         response = requests.get('https://www.douyin.com/aweme/v1/web/aweme/favorite/', params=params.get(),
                                 headers=headers.get(), cookies=auth.cookie,
-                                verify=False)
+                                verify=False, timeout=30)
         return response.json()
 
 
@@ -721,7 +753,7 @@ class DouyinAPI:
         params.add_param('verifyFp', auth.cookie['s_v_web_id'])
         params.add_param('fp', auth.cookie['s_v_web_id'])
         params.with_a_bogus()
-        resp = requests.get(url, params=params.get(), verify=False, headers=headers.get(), cookies=auth.cookie)
+        resp = requests.get(url, params=params.get(), verify=False, headers=headers.get(), cookies=auth.cookie, timeout=30)
         resp_json = json.loads(resp.text)
         return int(resp_json['user_uid'])
 
@@ -737,7 +769,7 @@ class DouyinAPI:
         params = {
             "from_tab_name": "main"
         }
-        response = requests.get(url, headers=headers.get(), cookies=auth.cookie, params=params)
+        response = requests.get(url, headers=headers.get(), cookies=auth.cookie, params=params, timeout=30)
         sec_uid = re.findall(r'\\"secUid\\":\\"(.*?)\\"', response.text)[0]
         return sec_uid
 
@@ -751,7 +783,7 @@ class DouyinAPI:
         """
         url = "https://live.douyin.com/" + live_id
         headers = HeaderBuilder().build(HeaderType.GET)
-        res = requests.get(url, headers=headers.get(), cookies=auth_.cookie, verify=False)
+        res = requests.get(url, headers=headers.get(), cookies=auth_.cookie, verify=False, timeout=30)
         ttwid = res.cookies.get_dict()['ttwid']
         soup = BeautifulSoup(res.text, 'html.parser')
         scripts = soup.select('script[nonce]')
@@ -1126,7 +1158,7 @@ class DouyinAPI:
         params.add_param("verifyFp", auth.cookie['s_v_web_id'])
         params.add_param("fp", auth.cookie['s_v_web_id'])
         res = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), params=params.get(),
-                           cookies=auth.cookie, verify=False)
+                           cookies=auth.cookie, verify=False, timeout=30)
         return res.json()
 
     @staticmethod
@@ -1185,7 +1217,7 @@ class DouyinAPI:
         params.add_param("verifyFp", auth.cookie['s_v_web_id'])
         params.add_param("fp", auth.cookie['s_v_web_id'])
         res = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), params=params.get(),
-                           cookies=auth.cookie, verify=False)
+                           cookies=auth.cookie, verify=False, timeout=30)
         return res.json()
 
     @staticmethod
@@ -1269,7 +1301,7 @@ class DouyinAPI:
         params.add_param("verifyFp", auth.cookie['s_v_web_id'])
         params.add_param("fp", auth.cookie['s_v_web_id'])
         res = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), params=params.get(),
-                           cookies=auth.cookie, verify=False)
+                           cookies=auth.cookie, verify=False, timeout=30)
         return res.json()
 
     @staticmethod
@@ -1349,7 +1381,7 @@ class DouyinAPI:
         params.add_param("verifyFp", auth.cookie['s_v_web_id'])
         params.add_param("fp", auth.cookie['s_v_web_id'])
         res = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), params=params.get(),
-                           cookies=auth.cookie, verify=False)
+                           cookies=auth.cookie, verify=False, timeout=30)
         return res.json()
 
     @staticmethod
@@ -1433,7 +1465,7 @@ class DouyinAPI:
         params.add_param("fp", auth.cookie['s_v_web_id'])
 
         res = requests.get(f'{DouyinAPI.douyin_url}{api}', headers=headers.get(), params=params.get(),
-                           cookies=auth.cookie, verify=False)
+                           cookies=auth.cookie, verify=False, timeout=30)
         return res.json()
 
 
