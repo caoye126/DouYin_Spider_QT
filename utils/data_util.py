@@ -19,48 +19,56 @@ def norm_text(text):
 
 
 def timestamp_to_str(timestamp):
-    time_local = time.localtime(timestamp / 1000)
-    dt = time.strftime("%Y-%m-%d %H:%M:%S", time_local)
-    return dt
+    try:
+        ts = int(timestamp)
+        if ts > 10000000000: # 可能是毫秒
+            ts = ts / 1000
+        time_local = time.localtime(ts)
+        dt = time.strftime("%Y-%m-%d %H:%M:%S", time_local)
+        return dt
+    except:
+        return str(timestamp)
 
 
 
 def handle_work_info(data):
-    # 安全获取字段值，处理字典和列表类型
+    # 安全获取字段值
     def safe_get(obj, key, default='未知'):
         if isinstance(obj, dict) and key in obj:
-            value = obj[key]
-            if isinstance(value, (dict, list)):
-                return str(value)  # 将复杂类型转换为字符串
-            return value
+            return obj[key]
         return default
     
-    sec_uid = safe_get(data['author'], 'sec_uid', '未知')
+    author = data.get('author', {})
+    if not author:
+        author = data.get('user', {}) # 兼容某些接口
+
+    sec_uid = safe_get(author, 'sec_uid', '未知')
     user_url = f'https://www.douyin.com/user/{sec_uid}' if sec_uid != '未知' else '未知'
-    user_desc = safe_get(data['author'], 'signature', '未知')
-    following_count = safe_get(data['author'], 'following_count', '未知')
-    follower_count = safe_get(data['author'], 'follower_count', '未知')
-    total_favorited = safe_get(data['author'], 'total_favorited', '未知')
-    aweme_count = safe_get(data['author'], 'aweme_count', '未知')
-    user_id = safe_get(data['author'], 'unique_id', '未知')
-    user_age = safe_get(data['author'], 'user_age', '未知')
-    gender = safe_get(data['author'], 'gender', '未知')
+    user_desc = safe_get(author, 'signature', '未知')
+    following_count = safe_get(author, 'following_count', '未知')
+    follower_count = safe_get(author, 'follower_count', '未知')
+    total_favorited = safe_get(author, 'total_favorited', '未知')
+    aweme_count = safe_get(author, 'aweme_count', '未知')
+    user_id = safe_get(author, 'unique_id', '未知')
+    user_age = safe_get(author, 'user_age', '未知')
+    gender = safe_get(author, 'gender', '未知')
     if gender == 1:
         gender = '男'
     elif gender == 0:
         gender = '女'
     else:
         gender = '未知'
-    try:
-        ip_location = safe_get(data, 'user', {}).get('ip_location', '未知')
-    except:
-        ip_location = '未知'
+    
+    ip_location = data.get('ip_label', '未知')
+    if ip_location == '未知':
+        ip_location = data.get('user', {}).get('ip_location', '未知')
+    
     aweme_id = safe_get(data, 'aweme_id', '未知')
-    nickname = safe_get(data['author'], 'nickname', '未知')
+    nickname = safe_get(author, 'nickname', '未知')
     
     # 安全获取头像URL
     try:
-        avatar_list = data.get('author', {}).get('avatar_thumb', {}).get('url_list', [])
+        avatar_list = author.get('avatar_thumb', {}).get('url_list', [])
         if avatar_list and len(avatar_list) > 0:
             author_avatar = avatar_list[0]
         else:
@@ -80,11 +88,13 @@ def handle_work_info(data):
     
     title = safe_get(data, 'desc', '未知')
     desc = safe_get(data, 'desc', '未知')
-    admire_count = safe_get(data['statistics'], 'admire_count', 0)
-    digg_count = safe_get(data['statistics'], 'digg_count', 0)
-    commnet_count = safe_get(data['statistics'], 'comment_count', 0)
-    collect_count = safe_get(data['statistics'], 'collect_count', 0)
-    share_count = safe_get(data['statistics'], 'share_count', 0)
+    
+    stats = data.get('statistics', {})
+    admire_count = safe_get(stats, 'admire_count', 0)
+    digg_count = safe_get(stats, 'digg_count', 0)
+    comment_count = safe_get(stats, 'comment_count', 0)
+    collect_count = safe_get(stats, 'collect_count', 0)
+    share_count = safe_get(stats, 'share_count', 0)
     
     # 安全获取视频地址
     try:
@@ -96,26 +106,40 @@ def handle_work_info(data):
     except:
         video_addr = '未知'
     
-    images = safe_get(data, 'images', [])
-    if not isinstance(images, list):
-        images = []
+    # 获取图片列表 (图集)
+    image_urls = []
+    images = data.get('images', [])
+    if not images:
+        images = data.get('image_post_info', {}).get('images', [])
+    
+    if isinstance(images, list):
+        for img in images:
+            if isinstance(img, dict):
+                u_list = img.get('url_list', [])
+                if u_list:
+                    image_urls.append(u_list[0])
+            elif isinstance(img, str):
+                image_urls.append(img)
+
     create_time = safe_get(data, 'create_time', '未知')
 
-    text_extra = safe_get(data, 'text_extra', [])
-    text_extra = text_extra if text_extra else []
+    text_extra = data.get('text_extra', [])
     topics = []
-    for item in text_extra:
-        if isinstance(item, dict):
-            hashtag_name = safe_get(item, 'hashtag_name', '')
-            if hashtag_name:
-                topics.append(hashtag_name)
+    if isinstance(text_extra, list):
+        for item in text_extra:
+            if isinstance(item, dict):
+                hashtag_name = item.get('hashtag_name', '')
+                if hashtag_name:
+                    topics.append(hashtag_name)
 
-    work_type = '未知'
-    aweme_type = safe_get(data, 'aweme_type', -1)
-    if aweme_type == 68:
+    work_type = '视频'
+    aweme_type = data.get('aweme_type', -1)
+    if aweme_type in [68, 150]:
         work_type = '图集'
-    elif aweme_type == 0:
+    elif aweme_type in [0, 2, 4]:
         work_type = '视频'
+    elif image_urls: # 如果有图片列表，也认为是图集
+        work_type = '图集'
 
     return {
         'work_id': aweme_id,
@@ -125,12 +149,12 @@ def handle_work_info(data):
         'desc': desc,
         'admire_count': admire_count,
         'digg_count': digg_count,
-        'comment_count': commnet_count,
+        'comment_count': comment_count,
         'collect_count': collect_count,
         'share_count': share_count,
         'video_addr': video_addr,
-        'images': '; '.join(images) if images else '',  # 将列表转换为字符串
-        'topics': '; '.join(topics) if topics else '',  # 将列表转换为字符串
+        'images': image_urls,  # 返回列表
+        'topics': topics,      # 返回列表
         'create_time': create_time,
         'video_cover': video_cover,
         'user_url': user_url,
@@ -154,19 +178,29 @@ def save_to_xlsx(datas, file_path):
     headers = ['作品id', '作品url', '作品类型', '作品标题', '描述', 'admire数量', '点赞数量', '评论数量', '收藏数量', '分享数量', '视频地址url', '图片地址url列表', '标签', '上传时间', '视频封面url', '用户主页url', '用户id', '昵称', '头像url', '用户描述', '关注数量', '粉丝数量', '作品被赞和收藏数量', '作品数量', '用户年龄', '性别', 'ip归属地']
     ws.append(headers)
     for data in datas:
-        # 处理数据，确保所有值都是字符串
-        processed_data = {}
-        for k, v in data.items():
-            if isinstance(v, dict):
-                # 如果是字典，转换为JSON字符串
-                import json
-                processed_data[k] = norm_text(json.dumps(v, ensure_ascii=False))
+        processed_row = []
+        key_order = [
+            'work_id', 'work_url', 'work_type', 'title', 'desc', 
+            'admire_count', 'digg_count', 'comment_count', 'collect_count', 'share_count',
+            'video_addr', 'images', 'topics', 'create_time', 'video_cover',
+            'user_url', 'user_id', 'nickname', 'author_avatar', 'user_desc',
+            'following_count', 'follower_count', 'total_favorited', 'aweme_count',
+            'user_age', 'gender', 'ip_location'
+        ]
+        
+        for k in key_order:
+            v = data.get(k, '')
+            if k == 'create_time' and v != '未知':
+                val = timestamp_to_str(v)
             elif isinstance(v, list):
-                # 如果是列表，转换为字符串
-                processed_data[k] = norm_text(str(v))
+                val = '; '.join([str(i) for i in v])
+            elif isinstance(v, dict):
+                val = json.dumps(v, ensure_ascii=False)
             else:
-                processed_data[k] = norm_text(str(v))
-        ws.append(list(processed_data.values()))
+                val = str(v)
+            processed_row.append(norm_text(val))
+        ws.append(processed_row)
+        
     wb.save(file_path)
     logger.info(f'数据保存至 {file_path}')
 
@@ -184,7 +218,7 @@ def download_media(path, name, url, type):
         try:
             res = requests.get(url, headers=headers, timeout=30)
             res.raise_for_status()
-            with open(path + '/' + name + '.jpg', mode="wb") as f:
+            with open(os.path.join(path, name + '.jpg'), mode="wb") as f:
                 f.write(res.content)
             logger.debug(f'图片下载成功: {name}.jpg')
         except Exception as e:
@@ -195,7 +229,7 @@ def download_media(path, name, url, type):
             res.raise_for_status()
             size = 0
             chunk_size = 1024 * 1024
-            with open(path + '/' + name + '.mp4', mode="wb") as f:
+            with open(os.path.join(path, name + '.mp4'), mode="wb") as f:
                 for data in res.iter_content(chunk_size=chunk_size):
                     if data:
                         f.write(data)
@@ -203,14 +237,12 @@ def download_media(path, name, url, type):
             logger.debug(f'视频下载成功: {name}.mp4, 大小: {size} bytes')
         except Exception as e:
             logger.error(f'视频下载失败: {name}.mp4, 错误: {e}')
-            # 创建一个空文件作为占位符
-            with open(path + '/' + name + '.mp4', mode="wb") as f:
+            with open(os.path.join(path, name + '.mp4'), mode="wb") as f:
                 f.write(b'')
 
 
 def save_wrok_detail(work, path):
-    with open(f'{path}/detail.txt', mode="w", encoding="utf-8") as f:
-        # 逐行输出到txt里
+    with open(os.path.join(path, 'detail.txt'), mode="w", encoding="utf-8") as f:
         f.write(f"作品id: {work['work_id']}\n")
         f.write(f"作品url: {work['work_url']}\n")
         f.write(f"作品类型: {work['work_type']}\n")
@@ -222,8 +254,15 @@ def save_wrok_detail(work, path):
         f.write(f"收藏数量: {work['collect_count']}\n")
         f.write(f"分享数量: {work['share_count']}\n")
         f.write(f"视频地址url: {work['video_addr']}\n")
-        f.write(f"图片地址url列表: {', '.join(work['images'])}\n")
-        f.write(f"标签: {', '.join(work['topics'])}\n")
+        
+        images = work.get('images', [])
+        images_str = '; '.join(images) if isinstance(images, list) else str(images)
+        f.write(f"图片地址url列表: {images_str}\n")
+        
+        topics = work.get('topics', [])
+        topics_str = '; '.join(topics) if isinstance(topics, list) else str(topics)
+        f.write(f"标签: {topics_str}\n")
+        
         f.write(f"上传时间: {timestamp_to_str(work['create_time'])}\n")
         f.write(f"视频封面url: {work['video_cover']}\n")
         f.write(f"用户主页url: {work['user_url']}\n")
@@ -248,16 +287,18 @@ def download_work(work_info, path, save_choice):
     title = norm_str(title)[:40]
     nickname = work_info['nickname']
     nickname = norm_str(nickname)[:20]
-    if title.strip() == '':
+    if not title or title.strip() == '':
         title = f'无标题'
     
-    # 使用os.path.join来构建路径，避免特殊字符问题
     save_path = os.path.join(path, f'{nickname}_{user_id}', f'{title}_{work_id}')
     check_and_create_path(save_path)
-    with open(f'{save_path}/info.json', mode='w', encoding='utf-8') as f:
-        f.write(json.dumps(work_info) + '\n')
+    
+    with open(os.path.join(save_path, 'info.json'), mode='w', encoding='utf-8') as f:
+        f.write(json.dumps(work_info, ensure_ascii=False) + '\n')
+        
     work_type = work_info['work_type']
     save_wrok_detail(work_info, save_path)
+    
     if work_type == '图集' and save_choice in ['media', 'media-image', 'all']:
         images = work_info.get('images', [])
         if isinstance(images, list):
@@ -267,12 +308,12 @@ def download_work(work_info, path, save_choice):
     elif work_type == '视频' and save_choice in ['media', 'media-video', 'all']:
         video_cover = work_info.get('video_cover', '')
         video_addr = work_info.get('video_addr', '')
-        
         if video_cover and video_cover != '未知':
             download_media(save_path, 'cover', video_cover, 'image')
         if video_addr and video_addr != '未知':
             download_media(save_path, 'video', video_addr, 'video')
-    logger.info(f'作品 {work_info["work_id"]} 下载完成，保存路径: {save_path}')
+            
+    logger.info(f'作品 {work_info["work_id"]} 处理完成，保存路径: {save_path}')
     return save_path
 
 
@@ -284,3 +325,4 @@ def check_and_create_path(path):
         except Exception as e:
             logger.error(f"创建路径失败: {path}, 错误: {e}")
             raise
+
