@@ -279,6 +279,37 @@ def save_wrok_detail(work, path):
         f.write(f"ip归属地: {work['ip_location']}\n")
 
 
+def check_work_already_downloaded(save_path, work_type):
+    """
+    检查作品是否已经下载过
+    :param save_path: 保存路径
+    :param work_type: 作品类型（图集或视频）
+    :return: True表示已下载，False表示未下载
+    """
+    if not os.path.exists(save_path):
+        return False
+    
+    # 检查是否存在视频文件和图片文件
+    has_video = os.path.exists(os.path.join(save_path, 'video.mp4'))
+    has_images = False
+    
+    # 检查是否存在图片文件（image_0.jpg, image_1.jpg 等）
+    for file in os.listdir(save_path):
+        if file.startswith('image_') and file.endswith('.jpg'):
+            has_images = True
+            break
+    
+    # 根据作品类型判断是否已下载
+    if work_type == '视频':
+        # 视频作品：检查是否存在 video.mp4
+        return has_video
+    elif work_type == '图集':
+        # 图集作品：检查是否存在至少一张图片
+        return has_images
+    
+    return False
+
+
 @retry(tries=3, delay=1)
 def download_work(work_info, path, save_choice):
     work_id = work_info['work_id']
@@ -291,6 +322,13 @@ def download_work(work_info, path, save_choice):
         title = f'无标题'
     
     save_path = os.path.join(path, f'{nickname}_{user_id}', f'{title}_{work_id}')
+    
+    # 检查作品是否已经下载过
+    work_type = work_info['work_type']
+    if check_work_already_downloaded(save_path, work_type):
+        logger.info(f'作品 {work_id} 已存在，跳过下载: {save_path}')
+        return save_path
+    
     check_and_create_path(save_path)
     
     with open(os.path.join(save_path, 'info.json'), mode='w', encoding='utf-8') as f:
