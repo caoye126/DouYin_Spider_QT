@@ -371,8 +371,9 @@ def download_work(work_info, path, save_choice):
     elif work_type == '视频' and save_choice in ['media', 'media-video', 'all']:
         video_cover = work_info.get('video_cover', '')
         video_addr = work_info.get('video_addr', '')
-        if video_cover and video_cover != '未知':
-            download_media(save_path, 'cover', video_cover, 'image')
+        # 跳过下载封面 cover.jpg
+        # if video_cover and video_cover != '未知':
+        #     download_media(save_path, 'cover', video_cover, 'image')
         if video_addr and video_addr != '未知':
             download_media(save_path, 'video', video_addr, 'video')
             
