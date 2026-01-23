@@ -47,11 +47,13 @@ class Data_Spider():
         if (save_choice == 'all' or save_choice == 'excel') and excel_name == '':
             raise ValueError('excel_name 不能为空')
         work_list = []
+        total_works = len(works)
         for work_url in works:
             work_info = self.spider_work(auth, work_url)
             work_list.append(work_info)
-        for work_info in work_list:
+        for idx, work_info in enumerate(work_list, 1):
             if save_choice == 'all' or 'media' in save_choice:
+                logger.info(f'正在下载作品 {idx}/{total_works}')
                 download_work(work_info, base_path['media'], save_choice)
         if save_choice == 'all' or save_choice == 'excel':
             file_path = os.path.abspath(os.path.join(base_path['excel'], f'{excel_name}.xlsx'))
@@ -72,16 +74,18 @@ class Data_Spider():
         user_info = self.douyin_apis.get_user_info(auth, user_url)
         work_list = self.douyin_apis.get_user_all_work_info(auth, user_url)
         work_info_list = []
-        logger.info(f'用户 {user_url} 作品数量: {len(work_list)}')
+        total_works = len(work_list)
+        logger.info(f'用户 {user_url} 作品数量: {total_works}')
         if save_choice == 'all' or save_choice == 'excel':
             excel_name = user_url.split('/')[-1].split('?')[0]
 
-        for work_info in work_list:
+        for idx, work_info in enumerate(work_list, 1):
             work_info['author'].update(user_info['user'])
             work_info = handle_work_info(work_info)
             work_info_list.append(work_info)
             logger.info(f'爬取作品信息 {work_info["work_url"]}')
             if save_choice == 'all' or 'media' in save_choice:
+                logger.info(f'正在下载作品 {idx}/{total_works}')
                 download_work(work_info, base_path['media'], save_choice)
         if save_choice == 'all' or save_choice == 'excel':
             file_path = os.path.abspath(os.path.join(base_path['excel'], f'{excel_name}.xlsx'))
@@ -103,15 +107,17 @@ class Data_Spider():
         """
         work_info_list = []
         work_list = self.douyin_apis.search_some_general_work(auth, query, require_num, sort_type, publish_time, filter_duration, search_range, content_type)
-        logger.info(f'搜索关键词 {query} 作品数量: {len(work_list)}')
+        total_works = len(work_list)
+        logger.info(f'搜索关键词 {query} 作品数量: {total_works}')
         if save_choice == 'all' or save_choice == 'excel':
             excel_name = query
-        for work_info in work_list:
+        for idx, work_info in enumerate(work_list, 1):
             logger.info(json.dumps(work_info))
             logger.info(f'爬取作品信息 https://www.douyin.com/video/{work_info["aweme_info"]["aweme_id"]}')
             work_info = handle_work_info(work_info['aweme_info'])
             work_info_list.append(work_info)
             if save_choice == 'all' or 'media' in save_choice:
+                logger.info(f'正在下载作品 {idx}/{total_works}')
                 download_work(work_info, base_path['media'], save_choice)
         if save_choice == 'all' or save_choice == 'excel':
             file_path = os.path.abspath(os.path.join(base_path['excel'], f'{excel_name}.xlsx'))
