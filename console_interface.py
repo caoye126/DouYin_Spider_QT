@@ -7,6 +7,7 @@
 
 import os
 import sys
+import threading
 from loguru import logger
 
 from dy_apis.douyin_api import DouyinAPI
@@ -23,7 +24,65 @@ class ConsoleInterface:
         self.data_spider = Data_Spider()
         self.auth = None
         self.base_path = None
-        
+        self.user_input = None
+        self.input_lock = threading.Lock()
+    
+    def get_user_input_with_timeout(self, prompt, input_type="str", timeout=0, default_value=None, allow_empty=False):
+        """
+        获取用户输入（支持超时）
+        :param prompt: 提示信息
+        :param input_type: 输入类型 (str, int, url)
+        :param timeout: 超时时间（秒），0表示不超时
+        :param default_value: 超时后的默认值
+        :param allow_empty: 是否允许空输入
+        :return: 用户输入或默认值
+        """
+        if timeout > 0 and default_value is not None:
+            print(f"{prompt} (默认值: {default_value}, {timeout}秒后自动使用默认值): ", end="", flush=True)
+            self.user_input = None
+            
+            def input_thread():
+                try:
+                    self.user_input = input()
+                except:
+                    pass
+            
+            thread = threading.Thread(target=input_thread, daemon=True)
+            thread.start()
+            thread.join(timeout=timeout)
+            
+            if self.user_input is None:
+                print(f"\n(未输入，使用默认值: {default_value})")
+                return default_value
+            
+            user_input = self.user_input.strip()
+            
+            # 验证输入
+            if not user_input:
+                if allow_empty:
+                    return ""
+                else:
+                    print("输入不能为空，使用默认值")
+                    return default_value
+            
+            # 类型转换
+            if input_type == "int":
+                try:
+                    return int(user_input)
+                except ValueError:
+                    print(f"输入格式错误，使用默认值")
+                    return default_value
+            elif input_type == "url":
+                if not (user_input.startswith("http://") or user_input.startswith("https://")):
+                    print("请输入有效的URL地址，使用默认值")
+                    return default_value
+                return user_input
+            else:
+                return user_input
+        else:
+            # 无超时的普通输入
+            return self.get_user_input(prompt, input_type, allow_empty)
+    
     def init_auth(self):
         """初始化认证信息"""
         try:
@@ -127,7 +186,13 @@ class ConsoleInterface:
         user_url = self.get_user_input("请输入用户主页URL", "url")
         
         try:
-            save_choice = self.get_user_input("保存方式 (all/media/excel)", "str").lower()
+            # 保存方式处设置10秒超时，默认值为media
+            save_choice = self.get_user_input_with_timeout(
+                "保存方式 (all/media/excel)", 
+                input_type="str", 
+                timeout=10, 
+                default_value="media"
+            ).lower()
             self.data_spider.spider_user_all_work(self.auth, user_url, self.base_path, save_choice)
             print("用户作品爬取完成！")
         except Exception as e:
@@ -556,7 +621,13 @@ class ConsoleInterface:
         while True:
             try:
                 self.display_menu()
-                choice = self.get_user_input("请选择功能 (0-7)", "str")
+                # 菜单选项处设置10秒超时，默认值为2
+                choice = self.get_user_input_with_timeout(
+                    "请选择功能 (0-7)", 
+                    input_type="str", 
+                    timeout=10, 
+                    default_value="2"
+                )
                 
                 if choice == "0":
                     print("感谢使用抖音爬虫！")

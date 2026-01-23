@@ -139,6 +139,10 @@ class Data_Spider():
         :param user_url: 用户链接
         :return: 作品列表
         """
+        # 规范化用户URL
+        from dy_apis.douyin_api import normalize_user_url
+        user_url = normalize_user_url(user_url)
+        
         user_info = self.douyin_apis.get_user_info(self.auth, user_url)
         work_list = self.douyin_apis.get_user_all_work_info(self.auth, user_url)
         work_info_list = []
