@@ -27,6 +27,37 @@ class ConsoleInterface:
         self.user_input = None
         self.input_lock = threading.Lock()
     
+    def load_url_list_from_file(self):
+        """
+        从datas目录下的url_list文件中读取URL列表
+        :return: URL列表或None（如果文件不存在或无有效URL）
+        """
+        url_list_path = os.path.join('datas', 'url_list')
+        
+        # 检查文件是否存在
+        if not os.path.exists(url_list_path):
+            logger.info(f"url_list文件不存在: {url_list_path}")
+            return None
+        
+        try:
+            urls = []
+            with open(url_list_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    # 只提取以https或http开头的URL
+                    if line.startswith('https://') or line.startswith('http://'):
+                        urls.append(line)
+            
+            if urls:
+                logger.info(f"从url_list文件中读取到{len(urls)}个URL")
+                return urls
+            else:
+                logger.info("url_list文件中未找到有效的URL")
+                return None
+        except Exception as e:
+            logger.error(f"读取url_list文件失败: {e}")
+            return None
+    
     def get_user_input_with_timeout(self, prompt, input_type="str", timeout=0, default_value=None, allow_empty=False):
         """
         获取用户输入（支持超时）
@@ -147,32 +178,43 @@ class ConsoleInterface:
             print("错误: 未配置有效的Cookie，请编辑.env文件配置DOUYIN_COOKIE")
             return
         
-        video_url = self.get_user_input("请输入视频URL", "url")
+        # 尝试从url_list文件读取URL
+        video_urls = self.load_url_list_from_file()
+        if video_urls:
+            print(f"✓ 从url_list文件中读取到{len(video_urls)}个视频URL")
+        else:
+            print("未找到url_list文件或文件中无有效URL，请手动输入")
+            video_url = self.get_user_input("请输入视频URL", "url")
+            video_urls = [video_url]
         
-        try:
-            work_info = self.data_spider.spider_work(self.auth, video_url)
-            print(f"视频标题: {work_info.get('title', 'N/A')}")
-            print(f"作者: {work_info.get('author', {}).get('nickname', 'N/A')}")
-            print(f"点赞数: {work_info.get('statistics', {}).get('digg_count', 'N/A')}")
-            print(f"评论数: {work_info.get('statistics', {}).get('comment_count', 'N/A')}")
-            print(f"分享数: {work_info.get('statistics', {}).get('share_count', 'N/A')}")
-            
-            save_choice = self.get_user_input("是否保存数据？(all/media/excel/none)", "str").lower()
-            if save_choice in ['all', 'media', 'excel']:
-                excel_name = self.get_user_input("请输入保存文件名", "str") if save_choice in ['all', 'excel'] else 'single_video'
-                self.data_spider.spider_some_work(self.auth, [video_url], self.base_path, save_choice, excel_name)
-                print("数据保存成功！")
-        except Exception as e:
-            logger.error(f"爬取视频信息失败: {e}")
-            print(f"爬取失败: {e}")
-            if "s_v_web_id" in str(e):
-                print("提示: 请检查.env文件中的DOUYIN_COOKIE配置是否正确")
-            elif "jsrsasign" in str(e):
-                print("提示: 缺少JavaScript依赖模块，请运行以下命令安装:")
-                print("  npm install jsrsasign")
-                print("  或者升级Node.js到20+版本")
-            elif "Cannot find module" in str(e):
-                print("提示: 缺少Node.js模块，请检查Node.js环境配置")
+        # 逐个处理视频
+        for idx, video_url in enumerate(video_urls, 1):
+            try:
+                logger.info(f'正在处理视频 {idx}/{len(video_urls)}: {video_url}')
+                print(f"\n【{idx}/{len(video_urls)}】处理视频: {video_url}")
+                work_info = self.data_spider.spider_work(self.auth, video_url)
+                print(f"视频标题: {work_info.get('title', 'N/A')}")
+                print(f"作者: {work_info.get('author', {}).get('nickname', 'N/A')}")
+                print(f"点赞数: {work_info.get('statistics', {}).get('digg_count', 'N/A')}")
+                print(f"评论数: {work_info.get('statistics', {}).get('comment_count', 'N/A')}")
+                print(f"分享数: {work_info.get('statistics', {}).get('share_count', 'N/A')}")
+                
+                save_choice = self.get_user_input("是否保存数据？(all/media/excel/none)", "str").lower()
+                if save_choice in ['all', 'media', 'excel']:
+                    excel_name = self.get_user_input("请输入保存文件名", "str") if save_choice in ['all', 'excel'] else 'single_video'
+                    self.data_spider.spider_some_work(self.auth, [video_url], self.base_path, save_choice, excel_name)
+                    print("数据保存成功！")
+            except Exception as e:
+                logger.error(f"爬取视频信息失败: {e}")
+                print(f"第{idx}个视频爬取失败: {e}")
+                if "s_v_web_id" in str(e):
+                    print("提示: 请检查.env文件中的DOUYIN_COOKIE配置是否正确")
+                elif "jsrsasign" in str(e):
+                    print("提示: 缺少JavaScript依赖模块，请运行以下命令安装:")
+                    print("  npm install jsrsasign")
+                    print("  或者升级Node.js到20+版本")
+                elif "Cannot find module" in str(e):
+                    print("提示: 缺少Node.js模块，请检查Node.js环境配置")
     
     def crawl_user_works(self):
         """爬取用户所有作品"""
@@ -183,23 +225,35 @@ class ConsoleInterface:
             print("错误: 未配置有效的Cookie，请编辑.env文件配置DOUYIN_COOKIE")
             return
         
-        user_url = self.get_user_input("请输入用户主页URL", "url")
+        # 尝试从url_list文件读取用户URL
+        user_urls = self.load_url_list_from_file()
+        if user_urls:
+            print(f"✓ 从url_list文件中读取到{len(user_urls)}个用户URL")
+        else:
+            print("未找到url_list文件或文件中无有效URL，请手动输入")
+            user_url = self.get_user_input("请输入用户主页URL", "url")
+            user_urls = [user_url]
         
-        try:
-            # 保存方式处设置10秒超时，默认值为media
-            save_choice = self.get_user_input_with_timeout(
-                "保存方式 (all/media/excel)", 
-                input_type="str", 
-                timeout=10, 
-                default_value="media"
-            ).lower()
-            self.data_spider.spider_user_all_work(self.auth, user_url, self.base_path, save_choice)
-            print("用户作品爬取完成！")
-        except Exception as e:
-            logger.error(f"爬取用户作品失败: {e}")
-            print(f"爬取失败: {e}")
-            if "s_v_web_id" in str(e):
-                print("提示: 请检查.env文件中的DOUYIN_COOKIE配置是否正确")
+        # 逐个处理用户
+        for idx, user_url in enumerate(user_urls, 1):
+            try:
+                logger.info(f'正在处理用户 {idx}/{len(user_urls)}: {user_url}')
+                print(f"\n【{idx}/{len(user_urls)}】处理用户: {user_url}")
+                
+                # 保存方式处设置10秒超时，默认值为media
+                save_choice = self.get_user_input_with_timeout(
+                    "保存方式 (all/media/excel)", 
+                    input_type="str", 
+                    timeout=10, 
+                    default_value="media"
+                ).lower()
+                self.data_spider.spider_user_all_work(self.auth, user_url, self.base_path, save_choice)
+                print(f"用户 {idx} 的作品爬取完成！")
+            except Exception as e:
+                logger.error(f"爬取用户作品失败: {e}")
+                print(f"第{idx}个用户爬取失败: {e}")
+                if "s_v_web_id" in str(e):
+                    print("提示: 请检查.env文件中的DOUYIN_COOKIE配置是否正确")
     
     def search_videos(self):
         """搜索视频"""
