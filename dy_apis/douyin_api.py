@@ -47,6 +47,26 @@ from builder.proto import ProtoBuilder
 from utils.dy_util import splice_url, generate_a_bogus, generate_msToken, trans_cookies
 
 
+def normalize_user_url(user_url: str) -> str:
+    """
+    规范化用户URL，确保格式标准化
+    :param user_url: 原始用户URL
+    :return: 规范化后的用户URL
+    """
+    if not user_url:
+        raise ValueError("用户URL不能为空")
+    
+    user_url = user_url.strip()
+    
+    # 提取用户ID（去掉查询参数）
+    user_id = user_url.split('/')[-1].split('?')[0]
+    
+    if not user_id:
+        raise ValueError(f"无法从URL中提取用户ID: {user_url}")
+    
+    # 返回规范化的用户URL
+    return f'https://www.douyin.com/user/{user_id}'
+
 
 class DouyinAPI:
     douyin_url = 'https://www.douyin.com'
@@ -62,6 +82,8 @@ class DouyinAPI:
         :param user_url: 用户主页URL.
         :return: 全部作品信息.
         """
+        # 规范化用户URL
+        user_url = normalize_user_url(user_url)
         max_cursor = "0"
         work_list = []
         while True:
@@ -374,6 +396,8 @@ class DouyinAPI:
         :param user_url: 用户主页URL.
         :return: 用户信息.
         """
+        # 规范化用户URL
+        user_url = normalize_user_url(user_url)
         api = f"/aweme/v1/web/user/profile/other/"
         user_id = user_url.split("/")[-1].split("?")[0]
         headers = HeaderBuilder().build(HeaderType.GET)
