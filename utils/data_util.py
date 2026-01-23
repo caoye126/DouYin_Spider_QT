@@ -204,7 +204,16 @@ def save_to_xlsx(datas, file_path):
     wb.save(file_path)
     logger.info(f'数据保存至 {file_path}')
 
-def download_media(path, name, url, type):
+def download_media(path, name, url, type, max_retries=2):
+    """
+    下载媒体文件（图片或视频）
+    :param path: 保存路径
+    :param name: 文件名
+    :param url: 下载URL
+    :param type: 文件类型（image或video）
+    :param max_retries: 最大重试次数（包括首次尝试）
+    :return: True表示成功，False表示失败
+    """
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Referer': 'https://www.douyin.com/',
@@ -215,30 +224,46 @@ def download_media(path, name, url, type):
     }
     
     if type == 'image':
-        try:
-            res = requests.get(url, headers=headers, timeout=30)
-            res.raise_for_status()
-            with open(os.path.join(path, name + '.jpg'), mode="wb") as f:
-                f.write(res.content)
-            logger.debug(f'图片下载成功: {name}.jpg')
-        except Exception as e:
-            logger.error(f'图片下载失败: {name}.jpg, 错误: {e}')
+        for attempt in range(max_retries):
+            try:
+                res = requests.get(url, headers=headers, timeout=30)
+                res.raise_for_status()
+                with open(os.path.join(path, name + '.jpg'), mode="wb") as f:
+                    f.write(res.content)
+                logger.debug(f'图片下载成功: {name}.jpg')
+                return True
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f'图片下载失败（第{attempt + 1}次尝试）: {name}.jpg, 错误: {e}，进行重试...')
+                    time.sleep(1)  # 重试前等待1秒
+                else:
+                    logger.error(f'图片下载失败（已重试{max_retries}次）: {name}.jpg, 错误: {e}')
+                    return False
     elif type == 'video':
-        try:
-            res = requests.get(url, headers=headers, stream=True, timeout=30)
-            res.raise_for_status()
-            size = 0
-            chunk_size = 1024 * 1024
-            with open(os.path.join(path, name + '.mp4'), mode="wb") as f:
-                for data in res.iter_content(chunk_size=chunk_size):
-                    if data:
-                        f.write(data)
-                        size += len(data)
-            logger.debug(f'视频下载成功: {name}.mp4, 大小: {size} bytes')
-        except Exception as e:
-            logger.error(f'视频下载失败: {name}.mp4, 错误: {e}')
-            with open(os.path.join(path, name + '.mp4'), mode="wb") as f:
-                f.write(b'')
+        for attempt in range(max_retries):
+            try:
+                res = requests.get(url, headers=headers, stream=True, timeout=30)
+                res.raise_for_status()
+                size = 0
+                chunk_size = 1024 * 1024
+                with open(os.path.join(path, name + '.mp4'), mode="wb") as f:
+                    for data in res.iter_content(chunk_size=chunk_size):
+                        if data:
+                            f.write(data)
+                            size += len(data)
+                logger.debug(f'视频下载成功: {name}.mp4, 大小: {size} bytes')
+                return True
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f'视频下载失败（第{attempt + 1}次尝试）: {name}.mp4, 错误: {e}，进行重试...')
+                    time.sleep(1)  # 重试前等待1秒
+                else:
+                    logger.error(f'视频下载失败（已重试{max_retries}次）: {name}.mp4, 错误: {e}')
+                    with open(os.path.join(path, name + '.mp4'), mode="wb") as f:
+                        f.write(b'')
+                    return False
+    
+    return False
 
 
 def save_wrok_detail(work, path):
